@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useHostsStore } from '~/stores/hosts'
-import { Plus, Monitor, Terminal as TerminalIcon } from 'lucide-vue-next'
+import { Plus, FolderPlus, Terminal as TerminalIcon } from 'lucide-vue-next'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
 import DialogContent from '@/components/ui/dialog/DialogContent.vue'
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue'
@@ -12,19 +12,30 @@ import DialogTrigger from '@/components/ui/dialog/DialogTrigger.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Label from '@/components/ui/label/Label.vue'
+import SidebarTreeItem from './SidebarTreeItem.vue'
 
 const hostsStore = useHostsStore()
 const isAddModalOpen = ref(false)
+const isFolderModalOpen = ref(false)
 
 const newHost = ref({
     name: '',
     host: '',
     port: 22,
     username: '',
-    password: ''
+    password: '',
+    parentId: null as string | null
+})
+
+const newFolder = ref({
+    name: '',
+    parentId: null as string | null
 })
 
 const emit = defineEmits(['connect'])
+
+const rootItems = computed(() => hostsStore.getChildren(null))
+const allFolders = computed(() => hostsStore.hosts.filter(h => h.type === 'folder'))
 
 const saveHost = async () => {
     if (!newHost.value.name || !newHost.value.host || !newHost.value.username) return
@@ -34,23 +45,39 @@ const saveHost = async () => {
         host: newHost.value.host,
         port: newHost.value.port,
         username: newHost.value.username,
-        password: newHost.value.password
+        password: newHost.value.password,
+        parentId: newHost.value.parentId
     })
 
-    // Reset form
+    resetForms()
+    isAddModalOpen.value = false
+}
+
+const saveFolder = () => {
+    if (!newFolder.value.name) return
+    hostsStore.addFolder(newFolder.value.name, newFolder.value.parentId)
+    resetForms()
+    isFolderModalOpen.value = false
+}
+
+const resetForms = () => {
     newHost.value = {
         name: '',
         host: '',
         port: 22,
         username: '',
-        password: ''
+        password: '',
+        parentId: null
     }
-    isAddModalOpen.value = false
+    newFolder.value = {
+        name: '',
+        parentId: null
+    }
 }
 
 const connectToHost = async (hostId: string) => {
   const host = hostsStore.hosts.find(h => h.id === hostId)
-  if (!host) return
+  if (!host || host.type !== 'host') return
   
   const decryptedPassword = await hostsStore.getDecryptedPassword(hostId)
   
@@ -70,7 +97,7 @@ const connectToHost = async (hostId: string) => {
     
     <div class="flex-1 overflow-y-auto">
       <div class="flex items-center justify-between mb-2">
-        <div class="text-xs font-semibold text-muted-foreground uppercase">Saved Hosts</div>
+        <div class="text-xs font-semibold text-muted-foreground uppercase">Explorer</div>
       </div>
       
       <div v-if="hostsStore.hosts.length === 0" class="text-sm text-muted-foreground italic p-2">
@@ -78,27 +105,24 @@ const connectToHost = async (hostId: string) => {
       </div>
 
       <div class="space-y-1">
-        <div 
-            v-for="h in hostsStore.hosts" 
-            :key="h.id" 
-            @click="connectToHost(h.id)"
-            class="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer group transition-colors"
-        >
-            <Monitor class="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
-            <div class="flex flex-col overflow-hidden">
-                <span class="text-sm font-medium truncate">{{ h.name }}</span>
-                <span class="text-xs text-muted-foreground truncate">{{ h.username }}@{{ h.host }}</span>
-            </div>
-        </div>
+        <SidebarTreeItem 
+            v-for="item in rootItems" 
+            :key="item.id" 
+            :item="item" 
+            :depth="0"
+            @connect="connectToHost"
+        />
       </div>
     </div>
 
-    <div class="border-t border-border pt-4">
+    <!-- Actions Footer -->
+    <div class="border-t border-border pt-4 flex gap-2">
+        <!-- Add Host Dialog -->
       <Dialog v-model:open="isAddModalOpen">
         <DialogTrigger as-child>
-          <Button variant="outline" class="w-full gap-2">
+          <Button variant="outline" size="sm" class="flex-1 gap-1" title="Add Host">
             <Plus class="w-4 h-4" />
-            Add New Host
+            Host
           </Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-[425px]">
@@ -109,6 +133,15 @@ const connectToHost = async (hostId: string) => {
             </DialogDescription>
           </DialogHeader>
           <div class="grid gap-4 py-4">
+             <!-- Parent Folder Selection -->
+             <div class="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="parent" class="text-right">Folder</Label>
+              <select id="parent" v-model="newHost.parentId" class="col-span-3 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  <option :value="null">Root (None)</option>
+                  <option v-for="f in allFolders" :key="f.id" :value="f.id">{{ f.name }}</option>
+              </select>
+            </div>
+
             <div class="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" class="text-right">Label</Label>
               <Input id="name" v-model="newHost.name" placeholder="Production Server" class="col-span-3" />
@@ -133,6 +166,37 @@ const connectToHost = async (hostId: string) => {
           <DialogFooter>
             <Button type="submit" @click="saveHost">Save Host</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <!-- New Folder Dialog -->
+      <Dialog v-model:open="isFolderModalOpen">
+        <DialogTrigger as-child>
+            <Button variant="ghost" size="sm" class="px-2" title="New Folder">
+             <FolderPlus class="w-4 h-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent class="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>New Folder</DialogTitle>
+                <DialogDescription>Create a folder to organize your hosts.</DialogDescription>
+            </DialogHeader>
+            <div class="grid gap-4 py-4">
+                 <div class="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="folderParent" class="text-right">Parent</Label>
+                    <select id="folderParent" v-model="newFolder.parentId" class="col-span-3 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                        <option :value="null">Root (None)</option>
+                         <option v-for="f in allFolders" :key="f.id" :value="f.id">{{ f.name }}</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="folderName" class="text-right">Name</Label>
+                    <Input id="folderName" v-model="newFolder.name" placeholder="My Project" class="col-span-3" />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button type="submit" @click="saveFolder">Create Folder</Button>
+            </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

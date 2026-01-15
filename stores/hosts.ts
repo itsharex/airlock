@@ -6,9 +6,11 @@ import { encrypt, decrypt } from '~/utils/security' // Assuming alias works, or 
 export interface Host {
     id: string
     name: string
-    host: string
-    port: number
-    username: string
+    type: 'host' | 'folder'
+    parentId: string | null
+    host?: string // Optional for folders
+    port?: number // Optional for folders
+    username?: string // Optional for folders
     encrypted_password?: string
     private_key_path?: string
 }
@@ -16,7 +18,19 @@ export interface Host {
 export const useHostsStore = defineStore('hosts', () => {
     const hosts = ref<Host[]>([])
 
-    async function addHost(hostData: Omit<Host, 'id' | 'encrypted_password'> & { password?: string }) {
+    // Helper to get children of a node
+    const getChildren = (parentId: string | null) => {
+        return hosts.value.filter(h => h.parentId === parentId)
+    }
+
+    // Helper to recursively delete items
+    const deleteRecursive = (id: string) => {
+        const children = getChildren(id)
+        children.forEach(child => deleteRecursive(child.id))
+        hosts.value = hosts.value.filter(h => h.id !== id)
+    }
+
+    async function addHost(hostData: Omit<Host, 'id' | 'type' | 'encrypted_password'> & { password?: string }) {
         const id = crypto.randomUUID()
         let encrypted_password = ''
 
@@ -26,6 +40,8 @@ export const useHostsStore = defineStore('hosts', () => {
 
         hosts.value.push({
             id,
+            type: 'host',
+            parentId: hostData.parentId || null,
             name: hostData.name,
             host: hostData.host,
             port: hostData.port,
@@ -35,8 +51,21 @@ export const useHostsStore = defineStore('hosts', () => {
         })
     }
 
-    function removeHost(id: string) {
-        hosts.value = hosts.value.filter(h => h.id !== id)
+    function addFolder(name: string, parentId: string | null = null) {
+        const id = crypto.randomUUID()
+        hosts.value.push({
+            id,
+            type: 'folder',
+            parentId,
+            name,
+            host: '', // Placeholder
+            port: 0, // Placeholder
+            username: '' // Placeholder
+        })
+    }
+
+    function removeItem(id: string) {
+        deleteRecursive(id)
     }
 
     async function updateHost(id: string, updates: Partial<Host> & { password?: string }) {
@@ -63,9 +92,11 @@ export const useHostsStore = defineStore('hosts', () => {
     return {
         hosts,
         addHost,
-        removeHost,
+        addFolder,
+        removeItem,
         updateHost,
-        getDecryptedPassword
+        getDecryptedPassword,
+        getChildren
     }
 }, {
     persist: {
