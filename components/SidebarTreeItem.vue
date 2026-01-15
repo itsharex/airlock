@@ -2,13 +2,20 @@
 import { ref, computed } from 'vue'
 import { type Host, useHostsStore } from '~/stores/hosts'
 import { ChevronRight, ChevronDown, Folder, Monitor, Trash2, FolderOpen } from 'lucide-vue-next'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 
 const props = defineProps<{
   item: Host
   depth: number
 }>()
 
-const emit = defineEmits(['connect', 'select-folder'])
+const emit = defineEmits(['connect', 'select-folder', 'edit', 'rename', 'create-host'])
 const hostsStore = useHostsStore()
 const isOpen = ref(false)
 
@@ -38,33 +45,43 @@ const handleDelete = async () => {
 
 <template>
   <div>
-    <div 
-        class="flex items-center gap-1 p-1 rounded-md hover:bg-muted cursor-pointer group transition-colors select-none text-sm"
-        :style="{ paddingLeft: `${props.depth * 12 + 8}px` }"
-        @click="handleClick"
-    >
-        <!-- Folder Icon / Chevron -->
-        <div v-if="props.item.type === 'folder'" class="flex items-center text-muted-foreground mr-1">
-            <component :is="isOpen ? ChevronDown : ChevronRight" class="w-3 h-3" />
-            <component :is="isOpen ? FolderOpen : Folder" class="w-4 h-4 ml-1" />
-        </div>
-        
-        <!-- Host Icon -->
-        <Monitor v-else class="w-4 h-4 text-muted-foreground mr-2 group-hover:text-foreground" />
+    <ContextMenu>
+        <ContextMenuTrigger as-child>
+            <div 
+                class="flex items-center gap-1 p-1 rounded-md hover:bg-muted cursor-pointer group transition-colors select-none text-sm"
+                :style="{ paddingLeft: `${props.depth * 24 + 12}px` }"
+                @click="handleClick"
+            >
+                <!-- Folder Icon / Chevron -->
+                <div v-if="props.item.type === 'folder'" class="flex items-center text-muted-foreground mr-1">
+                    <component :is="isOpen ? ChevronDown : ChevronRight" class="w-3 h-3" />
+                    <component :is="isOpen ? FolderOpen : Folder" class="w-4 h-4 ml-1" />
+                </div>
+                
+                <!-- Host Icon -->
+                <Monitor v-else class="w-4 h-4 text-muted-foreground mr-2 group-hover:text-foreground" />
 
-        <!-- Name -->
-        <span class="flex-1 truncate font-medium text-foreground/80 group-hover:text-foreground">
-            {{ props.item.name }}
-        </span>
-
-         <!-- Delete Action (Hover) -->
-         <button 
-            @click.stop="handleDelete" 
-            class="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-all"
-        >
-            <Trash2 class="w-3 h-3" />
-        </button>
-    </div>
+                <!-- Name -->
+                <span class="flex-1 truncate font-medium text-foreground/80 group-hover:text-foreground">
+                    {{ props.item.name }}
+                </span>
+            </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+            <template v-if="props.item.type === 'folder'">
+                <ContextMenuItem @select="$emit('rename', props.item)">Rename</ContextMenuItem>
+                <ContextMenuItem @select="$emit('create-host', props.item.id)">Add Host Here</ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem class="text-destructive focus:text-destructive" @select="handleDelete">Delete</ContextMenuItem>
+            </template>
+            <template v-else>
+                <ContextMenuItem @select="$emit('connect', props.item.id)">Connect</ContextMenuItem>
+                <ContextMenuItem @select="$emit('edit', props.item)">Edit</ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem class="text-destructive focus:text-destructive" @select="handleDelete">Delete</ContextMenuItem>
+            </template>
+        </ContextMenuContent>
+    </ContextMenu>
 
     <!-- Children (Recursive) -->
     <div v-if="props.item.type === 'folder' && isOpen">
@@ -74,8 +91,11 @@ const handleDelete = async () => {
             :item="child" 
             :depth="props.depth + 1"
             @connect="$emit('connect', $event)"
+            @edit="$emit('edit', $event)"
+            @rename="$emit('rename', $event)"
+            @create-host="$emit('create-host', $event)"
         />
-        <div v-if="children.length === 0" class="text-xs text-muted-foreground italic py-1" :style="{ paddingLeft: `${(props.depth + 1) * 12 + 24}px` }">
+        <div v-if="children.length === 0" class="text-xs text-muted-foreground italic py-1" :style="{ paddingLeft: `${(props.depth + 1) * 24 + 20}px` }">
             Empty
         </div>
     </div>

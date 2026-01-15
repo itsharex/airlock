@@ -17,6 +17,10 @@ import SidebarTreeItem from './SidebarTreeItem.vue'
 const hostsStore = useHostsStore()
 const isAddModalOpen = ref(false)
 const isFolderModalOpen = ref(false)
+const isRenameModalOpen = ref(false)
+
+const editingHostId = ref<string | null>(null)
+const editingFolderId = ref<string | null>(null)
 
 const newHost = ref({
     name: '',
@@ -32,6 +36,10 @@ const newFolder = ref({
     parentId: null as string | null
 })
 
+const renameData = ref({
+    name: ''
+})
+
 const emit = defineEmits(['connect'])
 
 const rootItems = computed(() => hostsStore.getChildren(null))
@@ -40,14 +48,25 @@ const allFolders = computed(() => hostsStore.hosts.filter(h => h.type === 'folde
 const saveHost = async () => {
     if (!newHost.value.name || !newHost.value.host || !newHost.value.username) return
 
-    await hostsStore.addHost({
-        name: newHost.value.name,
-        host: newHost.value.host,
-        port: newHost.value.port,
-        username: newHost.value.username,
-        password: newHost.value.password,
-        parentId: newHost.value.parentId
-    })
+    if (editingHostId.value) {
+         await hostsStore.updateHost(editingHostId.value, {
+            name: newHost.value.name,
+            host: newHost.value.host,
+            port: newHost.value.port,
+            username: newHost.value.username,
+            password: newHost.value.password || undefined,
+            parentId: newHost.value.parentId
+        })
+    } else {
+        await hostsStore.addHost({
+            name: newHost.value.name,
+            host: newHost.value.host,
+            port: newHost.value.port,
+            username: newHost.value.username,
+            password: newHost.value.password,
+            parentId: newHost.value.parentId
+        })
+    }
 
     resetForms()
     isAddModalOpen.value = false
@@ -60,7 +79,43 @@ const saveFolder = () => {
     isFolderModalOpen.value = false
 }
 
+const saveRename = () => {
+    if (editingFolderId.value && renameData.value.name) {
+        hostsStore.updateFolder(editingFolderId.value, renameData.value.name)
+        isRenameModalOpen.value = false
+        editingFolderId.value = null
+        renameData.value.name = ''
+    }
+}
+
+const onEditHost = async (host: any) => {
+    editingHostId.value = host.id
+    newHost.value = {
+        name: host.name,
+        host: host.host || '',
+        port: host.port || 22,
+        username: host.username || '',
+        password: '', // Don't fill password
+        parentId: host.parentId
+    }
+    isAddModalOpen.value = true
+}
+
+const onRenameFolder = (folder: any) => {
+    editingFolderId.value = folder.id
+    renameData.value.name = folder.name
+    isRenameModalOpen.value = true
+}
+
+const onCreateHostInFolder = (folderId: string) => {
+    resetForms()
+    newHost.value.parentId = folderId
+    isAddModalOpen.value = true
+}
+
 const resetForms = () => {
+    editingHostId.value = null
+    editingFolderId.value = null
     newHost.value = {
         name: '',
         host: '',
@@ -111,6 +166,9 @@ const connectToHost = async (hostId: string) => {
             :item="item" 
             :depth="0"
             @connect="connectToHost"
+            @edit="onEditHost"
+            @rename="onRenameFolder"
+            @create-host="onCreateHostInFolder"
         />
       </div>
     </div>
@@ -120,14 +178,14 @@ const connectToHost = async (hostId: string) => {
         <!-- Add Host Dialog -->
       <Dialog v-model:open="isAddModalOpen">
         <DialogTrigger as-child>
-          <Button variant="outline" size="sm" class="flex-1 gap-1" title="Add Host">
+          <Button variant="outline" size="sm" class="flex-1 gap-1" title="Add Host" @click="resetForms">
             <Plus class="w-4 h-4" />
             Host
           </Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add SSH Host</DialogTitle>
+            <DialogTitle>{{ editingHostId ? 'Edit Host' : 'Add SSH Host' }}</DialogTitle>
             <DialogDescription>
               Save host details securely. Passwords are encrypted locally.
             </DialogDescription>
@@ -160,11 +218,11 @@ const connectToHost = async (hostId: string) => {
             </div>
             <div class="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="password" class="text-right">Password</Label>
-              <Input id="password" type="password" v-model="newHost.password" class="col-span-3" />
+              <Input id="password" type="password" v-model="newHost.password" class="col-span-3" placeholder="Leave blank to keep unchanged" />
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" @click="saveHost">Save Host</Button>
+            <Button type="submit" @click="saveHost">{{ editingHostId ? 'Update' : 'Save' }}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -172,7 +230,7 @@ const connectToHost = async (hostId: string) => {
       <!-- New Folder Dialog -->
       <Dialog v-model:open="isFolderModalOpen">
         <DialogTrigger as-child>
-            <Button variant="ghost" size="sm" class="px-2" title="New Folder">
+            <Button variant="ghost" size="sm" class="px-2" title="New Folder" @click="resetForms">
              <FolderPlus class="w-4 h-4" />
           </Button>
         </DialogTrigger>
@@ -196,6 +254,24 @@ const connectToHost = async (hostId: string) => {
             </div>
             <DialogFooter>
                 <Button type="submit" @click="saveFolder">Create Folder</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+       <!-- Rename Folder Dialog -->
+      <Dialog v-model:open="isRenameModalOpen">
+        <DialogContent class="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>Rename Folder</DialogTitle>
+            </DialogHeader>
+            <div class="grid gap-4 py-4">
+                <div class="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="renameName" class="text-right">Name</Label>
+                    <Input id="renameName" v-model="renameData.name" class="col-span-3" @keyup.enter="saveRename" />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button type="submit" @click="saveRename">Rename</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>

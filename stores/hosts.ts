@@ -83,6 +83,14 @@ export const useHostsStore = defineStore('hosts', () => {
         hosts.value[index] = host
     }
 
+    function updateFolder(id: string, name: string) {
+        const index = hosts.value.findIndex(h => h.id === id)
+        if (index === -1) return
+        if (hosts.value[index].type !== 'folder') return
+
+        hosts.value[index].name = name
+    }
+
     async function getDecryptedPassword(id: string): Promise<string> {
         const host = hosts.value.find(h => h.id === id)
         if (!host || !host.encrypted_password) return ''
@@ -95,6 +103,7 @@ export const useHostsStore = defineStore('hosts', () => {
         addFolder,
         removeItem,
         updateHost,
+        updateFolder,
         getDecryptedPassword,
         getChildren
     }
