@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useHostsStore } from '~/stores/hosts'
-import { Plus, FolderPlus, Terminal as TerminalIcon } from 'lucide-vue-next'
+import { Plus, FolderPlus, Terminal as TerminalIcon, Cog } from 'lucide-vue-next'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
 import DialogContent from '@/components/ui/dialog/DialogContent.vue'
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue'
@@ -13,11 +13,13 @@ import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Label from '@/components/ui/label/Label.vue'
 import SidebarTreeItem from './SidebarTreeItem.vue'
+import SettingsDialog from './SettingsDialog.vue'
 
 const hostsStore = useHostsStore()
 const isAddModalOpen = ref(false)
 const isFolderModalOpen = ref(false)
 const isRenameModalOpen = ref(false)
+const isSettingsOpen = ref(false)
 
 const editingHostId = ref<string | null>(null)
 const editingFolderId = ref<string | null>(null)
@@ -275,6 +277,17 @@ const connectToHost = async (hostId: string) => {
             </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      <SettingsDialog v-model:open="isSettingsOpen" />
     </div>
+
+    <!-- Settings Trigger -->
+     <div class="border-t border-border pt-2 mt-2">
+         <Button variant="ghost" class="w-full justify-start gap-2 text-muted-foreground hover:text-foreground" @click="isSettingsOpen = true">
+            <Cog class="w-4 h-4" />
+            Settings
+         </Button>
+    </div>
+
   </div>
 </template>

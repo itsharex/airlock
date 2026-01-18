@@ -97,6 +97,10 @@ export const useHostsStore = defineStore('hosts', () => {
         return await decrypt(host.encrypted_password)
     }
 
+    function replaceState(newHosts: Host[]) {
+        hosts.value = newHosts
+    }
+
     return {
         hosts,
         addHost,
@@ -105,7 +109,8 @@ export const useHostsStore = defineStore('hosts', () => {
         updateHost,
         updateFolder,
         getDecryptedPassword,
-        getChildren
+        getChildren,
+        replaceState
     }
 }, {
     persist: {
