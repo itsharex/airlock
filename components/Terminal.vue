@@ -5,16 +5,20 @@ import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { useSessionsStore } from '~/stores/sessions'
 
 const props = defineProps<{
   sessionId: string
 }>()
+
+const sessionsStore = useSessionsStore()
 
 const terminalContainer = ref<HTMLElement | null>(null)
 let term: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let unlistenOutput: UnlistenFn | null = null
 let unlistenError: UnlistenFn | null = null
+let unlistenExit: UnlistenFn | null = null
 
 onMounted(async () => {
   term = new Terminal({
@@ -79,6 +83,14 @@ onMounted(async () => {
   unlistenError = await listen<string>(`ssh-error-${props.sessionId}`, (event) => {
       term?.write(`\r\n\x1b[31mError: ${event.payload}\x1b[0m\r\n`)
   })
+
+  // Handle Exit (Backend -> Frontend)
+  unlistenExit = await listen<any>(`ssh-exit-${props.sessionId}`, (event) => {
+      // Small delay to let final output render?
+      setTimeout(() => {
+          sessionsStore.removeSession(props.sessionId)
+      }, 500)
+  })
   
   window.addEventListener('resize', onResize)
 })
@@ -91,6 +103,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   unlistenOutput?.()
   unlistenError?.()
+  unlistenExit?.()
   term?.dispose()
 })
 </script>

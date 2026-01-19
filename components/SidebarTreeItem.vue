@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { type Host, useHostsStore } from '~/stores/hosts'
 import { ChevronRight, ChevronDown, Folder, Monitor, Trash2, FolderOpen } from 'lucide-vue-next'
+import { ask } from '@tauri-apps/plugin-dialog'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -37,7 +38,12 @@ const handleClick = () => {
 }
 
 const handleDelete = async () => {
-    if (confirm(`Are you sure you want to delete ${props.item.name}?`)) {
+    const yes = await ask(`Are you sure you want to delete ${props.item.name}?`, {
+        title: 'Delete Confirmation',
+        kind: 'warning'
+    });
+    
+    if (yes) {
         hostsStore.removeItem(props.item.id)
     }
 }
