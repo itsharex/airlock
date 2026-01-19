@@ -24,6 +24,9 @@ We are thrilled to announce the first public release of **Airlock**, a modern, l
 | **Windows** | NSIS Installer | `airlock_1.0.0_x64-setup.exe` |
 | **Windows** | MSI Installer | `airlock_1.0.0_x64_en-US.msi` |
 | **macOS** | Disk Image | `airlock_1.0.0_x64.dmg` |
+| **Linux** | Debian Package | `airlock_1.0.0_amd64.deb` |
+| **Linux** | AppImage | `airlock_1.0.0_amd64.AppImage` |
+| **Linux** | RPM Package | `airlock-1.0.0-1.x86_64.rpm` |
 
 ## 🤝 Special Thanks
 
