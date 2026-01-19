@@ -53,6 +53,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Airlock ${{ github.ref_name }}'
