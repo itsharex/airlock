@@ -16,7 +16,7 @@ const props = defineProps<{
   depth: number
 }>()
 
-const emit = defineEmits(['connect', 'select-folder', 'edit', 'rename', 'create-host'])
+const emit = defineEmits(['connect', 'select-folder', 'edit', 'rename', 'create-host', 'create-folder'])
 const hostsStore = useHostsStore()
 const isOpen = ref(false)
 
@@ -77,6 +77,7 @@ const handleDelete = async () => {
             <template v-if="props.item.type === 'folder'">
                 <ContextMenuItem @select="$emit('rename', props.item)">Rename</ContextMenuItem>
                 <ContextMenuItem @select="$emit('create-host', props.item.id)">Add Host Here</ContextMenuItem>
+                <ContextMenuItem @select="$emit('create-folder', props.item.id)">Add Folder Here</ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem class="text-destructive focus:text-destructive" @select="handleDelete">Delete</ContextMenuItem>
             </template>
@@ -100,6 +101,7 @@ const handleDelete = async () => {
             @edit="$emit('edit', $event)"
             @rename="$emit('rename', $event)"
             @create-host="$emit('create-host', $event)"
+            @create-folder="$emit('create-folder', $event)"
         />
         <div v-if="children.length === 0" class="text-xs text-muted-foreground italic py-1" :style="{ paddingLeft: `${(props.depth + 1) * 24 + 20}px` }">
             Empty

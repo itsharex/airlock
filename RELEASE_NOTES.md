@@ -13,6 +13,10 @@ This release introduces advanced customization options, layout improvements, and
 - **Collapsible Sidebar**: Added a toggle button to show/hide the sidebar, giving you more space for your terminal.
 - **Scrollable Tabs**: The session tab bar now supports horizontal scrolling, handling multiple active connections gracefully.
 
+### Host Management
+- **Improved Folder Selection**: Dropdowns now display the full folder path (e.g., `Parent > Child`) for better clarity when organizing hosts.
+- **Context Menu Actions**: Added a "New Folder" option to the right-click context menu for quicker folder creation.
+
 ### Terminal
 - **Enhanced Color Support**: Upgraded PTY request to `xterm-256color` to support rich terminal colors and prompts (e.g., green `user@host`).
 

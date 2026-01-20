@@ -47,6 +47,20 @@ const emit = defineEmits(['connect'])
 const rootItems = computed(() => hostsStore.getChildren(null))
 const allFolders = computed(() => hostsStore.hosts.filter(h => h.type === 'folder'))
 
+// Helper to get full path
+const getFolderPath = (folder: any): string => {
+    if (!folder.parentId) return folder.name
+    const parent = hostsStore.hosts.find(h => h.id === folder.parentId)
+    return parent ? `${getFolderPath(parent)} > ${folder.name}` : folder.name
+}
+
+const formattedFolders = computed(() => {
+    return allFolders.value.map(f => ({
+        ...f,
+        displayName: getFolderPath(f)
+    })).sort((a, b) => a.displayName.localeCompare(b.displayName))
+})
+
 const saveHost = async () => {
     if (!newHost.value.name || !newHost.value.host || !newHost.value.username) return
 
@@ -115,6 +129,12 @@ const onCreateHostInFolder = (folderId: string) => {
     isAddModalOpen.value = true
 }
 
+const onCreateFolderInFolder = (folderId: string) => {
+    resetForms()
+    newFolder.value.parentId = folderId
+    isFolderModalOpen.value = true
+}
+
 const resetForms = () => {
     editingHostId.value = null
     editingFolderId.value = null
@@ -171,6 +191,7 @@ const connectToHost = async (hostId: string) => {
             @edit="onEditHost"
             @rename="onRenameFolder"
             @create-host="onCreateHostInFolder"
+            @create-folder="onCreateFolderInFolder"
         />
       </div>
     </div>
@@ -198,7 +219,7 @@ const connectToHost = async (hostId: string) => {
               <Label htmlFor="parent" class="text-right">Folder</Label>
               <select id="parent" v-model="newHost.parentId" class="col-span-3 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                   <option :value="null">Root (None)</option>
-                  <option v-for="f in allFolders" :key="f.id" :value="f.id">{{ f.name }}</option>
+                  <option v-for="f in formattedFolders" :key="f.id" :value="f.id">{{ f.displayName }}</option>
               </select>
             </div>
 
@@ -246,7 +267,7 @@ const connectToHost = async (hostId: string) => {
                     <Label htmlFor="folderParent" class="text-right">Parent</Label>
                     <select id="folderParent" v-model="newFolder.parentId" class="col-span-3 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                         <option :value="null">Root (None)</option>
-                         <option v-for="f in allFolders" :key="f.id" :value="f.id">{{ f.name }}</option>
+                         <option v-for="f in formattedFolders" :key="f.id" :value="f.id">{{ f.displayName }}</option>
                     </select>
                 </div>
                 <div class="grid grid-cols-4 items-center gap-4">
