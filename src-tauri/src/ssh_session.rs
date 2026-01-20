@@ -75,7 +75,7 @@ pub async fn connect_and_stream(
 
     let mut channel = session.channel_open_session().await?;
     // request_pty takes (want_reply, term, col_width, row_height, pix_width, pix_height, modes)
-    channel.request_pty(false, "xterm", 80, 24, 0, 0, &[]).await?;
+    channel.request_pty(false, "xterm-256color", 80, 24, 0, 0, &[]).await?;
     channel.request_shell(false).await?; 
 
     // Create channel for input from Frontend -> SSH

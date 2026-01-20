@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useSettingsStore } from '~/stores/settings'
 import { useHostsStore } from '~/stores/hosts'
-import { save } from '@tauri-apps/plugin-dialog'
-import { writeTextFile } from '@tauri-apps/plugin-fs'
+import { save, open as openFileDialog } from '@tauri-apps/plugin-dialog'
+import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { exportData, importData } from '~/utils/backup'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
 import DialogContent from '@/components/ui/dialog/DialogContent.vue'
@@ -13,7 +14,9 @@ import DialogTitle from '@/components/ui/dialog/DialogTitle.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Label from '@/components/ui/label/Label.vue'
-import { Shield, Upload, Download, Loader2 } from 'lucide-vue-next'
+import { Shield, Upload, Download, Loader2, Terminal as TerminalIcon, Plus } from 'lucide-vue-next'
+
+// ... existing imports ...
 
 const props = defineProps<{
   open: boolean
@@ -21,6 +24,39 @@ const props = defineProps<{
 
 const emit = defineEmits(['update:open'])
 const hostsStore = useHostsStore()
+const settingsStore = useSettingsStore()
+
+const handleImportTheme = async () => {
+    try {
+        const selected = await openFileDialog({
+            multiple: false,
+            filters: [{
+                name: 'Theme JSON',
+                extensions: ['json']
+            }]
+        })
+        
+        if (selected) {
+             const content = await readTextFile(selected as string)
+             const theme = JSON.parse(content)
+             // Simple validation
+             if (!theme.background || !theme.foreground) {
+                 // You might want to show an error toast here
+                 console.error("Invalid theme file")
+                 return
+             }
+             
+             // Use filename as theme name
+             const pathString = selected as string
+             // Handle both windows and unix separators
+             const fileName = pathString.split(/[\\/]/).pop()?.replace('.json', '') || 'Custom Theme'
+             
+             await settingsStore.importTheme(fileName, theme)
+        }
+    } catch (e) {
+        console.error('Failed to import theme:', e)
+    }
+}
 
 const exportPassword = ref('')
 const importPassword = ref('')
@@ -142,7 +178,32 @@ const reset = () => {
       
       <div class="space-y-6 py-4">
         
+        <!-- Appearance Section -->
+         <div class="space-y-4 border rounded-lg p-4 bg-muted/20">
+            <div class="flex items-center gap-2 font-semibold">
+                <TerminalIcon class="w-4 h-4" /> Appearance
+            </div>
+            <div class="grid grid-cols-4 items-center gap-4">
+               <Label class="text-right">Theme</Label>
+               <div class="col-span-3 flex gap-2">
+                   <select 
+                      v-model="settingsStore.terminalThemeName" 
+                      class="flex-1 flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      @change="settingsStore.setTerminalTheme(($event.target as HTMLSelectElement).value)"
+                    >
+                       <option v-for="(theme, name) in settingsStore.allThemes" :key="name" :value="name">
+                           {{ name }}
+                       </option>
+                   </select>
+                   <Button variant="outline" size="icon" @click="handleImportTheme" title="Import Theme (JSON)">
+                       <Plus class="w-4 h-4" />
+                   </Button>
+               </div>
+            </div>
+         </div>
+
         <!-- Export Section -->
+
         <div class="space-y-4 border rounded-lg p-4 bg-muted/20">
             <div class="flex items-center gap-2 font-semibold">
                 <Upload class="w-4 h-4" /> Export Backup

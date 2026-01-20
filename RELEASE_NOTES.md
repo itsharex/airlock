@@ -1,3 +1,23 @@
+# Airlock v1.0.2 Release Notes
+
+This release introduces advanced customization options, layout improvements, and better terminal color support.
+
+## ✨ New Features
+
+### Customization
+- **Theme Support**: Added support for color schemes! Choose from built-in themes like Dracula, One Dark, Monokai, and Campbell (Windows CMD/PowerShell).
+- **Theme Import**: You can now import custom themes from JSON files stored on your disk.
+- **Disk-Based Storage**: Custom themes are saved to your configuration folder for persistence.
+
+### User Interface
+- **Collapsible Sidebar**: Added a toggle button to show/hide the sidebar, giving you more space for your terminal.
+- **Scrollable Tabs**: The session tab bar now supports horizontal scrolling, handling multiple active connections gracefully.
+
+### Terminal
+- **Enhanced Color Support**: Upgraded PTY request to `xterm-256color` to support rich terminal colors and prompts (e.g., green `user@host`).
+
+---
+
 # Airlock v1.0.1 Release Notes
 
 This release addresses critical issues with terminal resizing and improves stability.

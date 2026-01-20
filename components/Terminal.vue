@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useSessionsStore } from '~/stores/sessions'
+import { useSettingsStore } from '~/stores/settings'
 
 const props = defineProps<{
   sessionId: string
 }>()
 
 const sessionsStore = useSessionsStore()
+const settingsStore = useSettingsStore()
 
 const terminalContainer = ref<HTMLElement | null>(null)
 let term: Terminal | null = null
@@ -25,31 +27,14 @@ onMounted(async () => {
     cursorBlink: true,
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     fontSize: 14,
-    theme: {
-      background: '#282a36',
-      foreground: '#f8f8f2',
-      cursor: '#f8f8f2',
-      cursorAccent: '#282a36',
-      selectionBackground: '#44475a',
-      
-      black: '#21222c',
-      red: '#ff5555',
-      green: '#50fa7b',
-      yellow: '#f1fa8c',
-      blue: '#bd93f9',
-      magenta: '#ff79c6',
-      cyan: '#8be9fd',
-      white: '#f8f8f2',
-      
-      brightBlack: '#6272a4',
-      brightRed: '#ff6e6e',
-      brightGreen: '#69ff94',
-      brightYellow: '#ffffa5',
-      brightBlue: '#d6acff',
-      brightMagenta: '#ff92df',
-      brightCyan: '#a4ffff',
-      brightWhite: '#ffffff',
-    }
+    theme: settingsStore.currentTheme
+  })
+  
+  // Update theme when it changes
+  watch(() => settingsStore.currentTheme, (newTheme) => {
+      if (term) {
+          term.options.theme = newTheme
+      }
   })
   
   fitAddon = new FitAddon()
