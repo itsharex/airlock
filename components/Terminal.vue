@@ -8,7 +8,8 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useSessionsStore } from '~/stores/sessions'
 import { useSettingsStore } from '~/stores/settings'
 import { useTabsStore } from '~/stores/tabs'
-import { SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-vue-next'
+import { SplitSquareHorizontal, SplitSquareVertical, X, Copy, Clipboard } from 'lucide-vue-next'
+
 import { onClickOutside } from '@vueuse/core'
 
 const props = defineProps<{
@@ -31,6 +32,8 @@ let resizeObserver: ResizeObserver | null = null
 const showContextMenu = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
+const hasSelection = ref(false)
+
 
 onClickOutside(contextMenuRef, () => {
     showContextMenu.value = false
@@ -60,6 +63,11 @@ onMounted(async () => {
     term.open(terminalContainer.value)
     fitAddon.fit()
   }
+
+  term.onSelectionChange(() => {
+     hasSelection.value = term!.hasSelection()
+  })
+
 
   // Handle Input (Frontend -> Backend)
   term.onData((data) => {
@@ -166,6 +174,28 @@ const closeContextMenu = () => {
     showContextMenu.value = false
 }
 
+const handleCopy = async () => {
+    closeContextMenu()
+    const selection = term?.getSelection()
+    if (selection) {
+        await navigator.clipboard.writeText(selection)
+    }
+}
+
+const handlePaste = async () => {
+    closeContextMenu()
+    try {
+        const text = await navigator.clipboard.readText()
+        if (text) {
+             invoke('send_ssh_input', { id: props.sessionId, data: text })
+                .catch(err => console.error('Failed to paste input', err))
+        }
+    } catch (err) {
+        console.error('Failed to read clipboard', err)
+    }
+}
+
+
 const split = async (direction: 'horizontal' | 'vertical') => {
     closeContextMenu()
     // 1. Get current session info to replicate credentials (ideal) or just split with new empty/prompt?
@@ -239,6 +269,14 @@ const split = async (direction: 'horizontal' | 'vertical') => {
         class="fixed z-50 bg-popover text-popover-foreground border border-border shadow-md rounded-md p-1 min-w-[150px] flex flex-col gap-0.5"
         :style="{ top: `${contextMenuY}px`, left: `${contextMenuX}px` }"
       >
+          <button @click="handleCopy" :disabled="!hasSelection" class="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded-sm text-sm text-left disabled:opacity-50 disabled:cursor-not-allowed">
+              <Copy class="w-4 h-4" /> Copy
+          </button>
+          <button @click="handlePaste" class="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded-sm text-sm text-left">
+              <Clipboard class="w-4 h-4" /> Paste
+          </button>
+          <div class="h-px bg-border my-0.5"></div>
+
           <button @click="split('horizontal')" class="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded-sm text-sm text-left">
               <SplitSquareVertical class="w-4 h-4" /> Split Horizontal
           </button>
