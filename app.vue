@@ -1,23 +1,41 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useSessionsStore } from '~/stores/sessions'
+import { useTabsStore } from '~/stores/tabs'
 import { invoke } from '@tauri-apps/api/core'
-import Terminal from './components/Terminal.vue'
 import HostSidebar from './components/HostSidebar.vue'
+import SplitPaneLayout from './components/SplitPaneLayout.vue'
 import { X, PanelLeft, PanelLeftClose } from 'lucide-vue-next'
 
 const sessionsStore = useSessionsStore()
+const tabsStore = useTabsStore()
 const isSidebarOpen = ref(true)
 
 const handleConnect = async (connectionDetails: any) => {
-    const id = `session-${Date.now()}`
+    let id = `session-${Date.now()}`
+    const label = `${connectionDetails.username}@${connectionDetails.host}`
     
-    // Add session to store
-    sessionsStore.addSession({
-        id,
-        hostLabel: `${connectionDetails.username}@${connectionDetails.host}`,
-        status: 'connected'
-    })
+    // Check if we can reuse the active pane
+    const activePaneId = tabsStore.activePaneId
+    const activeSession = activePaneId ? sessionsStore.sessions.find(s => s.id === activePaneId) : null
+    
+    if (activeSession && activeSession.status === 'disconnected') {
+        // Reuse existing session/pane
+        id = activePaneId! // Use the existing ID
+        // Update session details
+        activeSession.hostLabel = label
+        activeSession.status = 'connected'
+        // No need to create a new tab
+    } else {
+        // Create new session
+        sessionsStore.addSession({
+            id,
+            hostLabel: label,
+            status: 'connected'
+        })
+        // Create a new tab for this session
+        tabsStore.createTab(id, label)
+    }
 
     try {
         await invoke('connect_ssh', {
@@ -29,7 +47,7 @@ const handleConnect = async (connectionDetails: any) => {
         })
     } catch (e) {
         console.error("Connect failed", e)
-        // If connection fails immediately, remove the session?
+        // If connection fails immediately, remove the session/tab?
         // For now, let it stay open so user sees error output
     }
 }
@@ -59,33 +77,35 @@ const handleConnect = async (connectionDetails: any) => {
              <!-- Tabs Container -->
             <div class="flex-1 flex items-center overflow-x-auto no-scrollbar scroll-smooth">
                 <div 
-                    v-for="s in sessionsStore.sessions" 
-                    :key="s.id"
-                    @click="sessionsStore.setActive(s.id)"
-                    :class="['group flex-shrink-0 flex items-center gap-2 px-4 h-full text-sm cursor-pointer border-r border-border hover:bg-muted select-none whitespace-nowrap', sessionsStore.activeSessionId === s.id ? 'bg-background font-medium' : 'text-muted-foreground bg-muted/50']"
+                    v-for="tab in tabsStore.tabs" 
+                    :key="tab.id"
+                    @click="tabsStore.setActiveTab(tab.id)"
+                    :class="['group flex-shrink-0 flex items-center gap-2 px-4 h-full text-sm cursor-pointer border-r border-border hover:bg-muted select-none whitespace-nowrap', tabsStore.activeTabId === tab.id ? 'bg-background font-medium' : 'text-muted-foreground bg-muted/50']"
                 >
-                    <span>{{ s.hostLabel }}</span>
+                    <span>{{ tab.label }}</span>
                     <button 
-                        @click.stop="sessionsStore.removeSession(s.id)"
+                        @click.stop="tabsStore.closeTab(tab.id)"
                         class="opacity-0 group-hover:opacity-100 p-0.5 rounded-sm hover:bg-zinc-700/50 transition-all"
                     >
                         <X class="w-3 h-3" />
                     </button>
                 </div>
-                <div v-if="sessionsStore.sessions.length === 0" class="px-4 text-sm text-muted-foreground italic whitespace-nowrap">
-                    No active sessions
+                <div v-if="tabsStore.tabs.length === 0" class="px-4 text-sm text-muted-foreground italic whitespace-nowrap">
+                    No active tabs
                 </div>
             </div>
         </div>
 
         <!-- Terminal Area -->
         <div class="flex-1 bg-zinc-950 relative overflow-hidden">
-            <template v-for="s in sessionsStore.sessions" :key="s.id">
-                <div v-show="sessionsStore.activeSessionId === s.id" class="absolute inset-0 p-2">
-                    <Terminal :session-id="s.id" />
-                </div>
+            <template v-if="tabsStore.activeTabId">
+                <template v-for="tab in tabsStore.tabs" :key="tab.id">
+                     <div v-show="tabsStore.activeTabId === tab.id" class="h-full w-full">
+                        <SplitPaneLayout :node="tab.root" />
+                     </div>
+                </template>
             </template>
-            <div v-if="sessionsStore.sessions.length === 0" class="flex items-center justify-center h-full text-muted-foreground">
+            <div v-else class="flex items-center justify-center h-full text-muted-foreground">
                 <div class="text-center">
                     <p class="text-lg font-medium text-foreground">Welcome to Airlock</p>
                     <p>Select a host from the sidebar to connect.</p>
@@ -95,6 +115,7 @@ const handleConnect = async (connectionDetails: any) => {
     </div>
   </div>
 </template>
+
 
 <style scoped>
 /* Hide scrollbar for Chrome, Safari and Opera */

@@ -1,3 +1,18 @@
+# Airlock v1.0.4 Release Notes
+
+This release brings a powerhouse feature to Airlock: **Split Screen Terminal**! You can now manage multiple sessions side-by-side for maximum productivity.
+
+## ✨ New Features
+
+### Split Screen Terminal
+- **Grid Layouts**: Split your terminal horizontally or vertically to view multiple sessions at once.
+- **Tab Management**: Organize your workspace with a new robust tab system. Each tab can contain its own unique split layout.
+- **Context Menu Controls**: Right-click on any terminal to access split controls (Horizontal/Vertical) or close the current pane.
+- **Seamless Connectivity**: Easily connect a specific split pane to a host by selecting the pane and clicking your desired connection in the sidebar.
+- **Draggable Resizing**: Customize your workspace by dragging the dividers to resize panes to your liking.
+
+---
+
 # Airlock v1.0.3 Release Notes
 
 This release focuses on data security, storage reliability, and application stability.

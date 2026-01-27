@@ -7,6 +7,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useSessionsStore } from '~/stores/sessions'
 import { useSettingsStore } from '~/stores/settings'
+import { useTabsStore } from '~/stores/tabs'
+import { SplitSquareHorizontal, SplitSquareVertical, X, Copy, Clipboard } from 'lucide-vue-next'
+
+import { onClickOutside } from '@vueuse/core'
 
 const props = defineProps<{
   sessionId: string
@@ -14,20 +18,35 @@ const props = defineProps<{
 
 const sessionsStore = useSessionsStore()
 const settingsStore = useSettingsStore()
+const tabsStore = useTabsStore()
 
 const terminalContainer = ref<HTMLElement | null>(null)
+const contextMenuRef = ref<HTMLElement | null>(null)
 let term: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let unlistenOutput: UnlistenFn | null = null
 let unlistenError: UnlistenFn | null = null
 let unlistenExit: UnlistenFn | null = null
+let resizeObserver: ResizeObserver | null = null
+
+const showContextMenu = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const hasSelection = ref(false)
+
+
+onClickOutside(contextMenuRef, () => {
+    showContextMenu.value = false
+})
 
 onMounted(async () => {
+// ... existing onMounted code ...
   term = new Terminal({
     cursorBlink: true,
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     fontSize: 14,
-    theme: settingsStore.currentTheme
+    theme: settingsStore.currentTheme,
+    allowProposedApi: true
   })
   
   // Update theme when it changes
@@ -44,6 +63,11 @@ onMounted(async () => {
     term.open(terminalContainer.value)
     fitAddon.fit()
   }
+
+  term.onSelectionChange(() => {
+     hasSelection.value = term!.hasSelection()
+  })
+
 
   // Handle Input (Frontend -> Backend)
   term.onData((data) => {
@@ -73,7 +97,9 @@ onMounted(async () => {
   unlistenExit = await listen<any>(`ssh-exit-${props.sessionId}`, (event) => {
       // Small delay to let final output render?
       setTimeout(() => {
+          // Remove session and pane
           sessionsStore.removeSession(props.sessionId)
+          tabsStore.removePane(props.sessionId)
       }, 500)
   })
   
@@ -85,8 +111,8 @@ onMounted(async () => {
     try {
         await invoke('resize_pty', { id: props.sessionId, rows, cols })
     } catch (err) {
-        console.warn('Failed to resize PTY, session might not be ready yet:', err)
-        throw err
+        // console.warn('Failed to resize PTY, session might not be ready yet:', err)
+        // throw err
     }
   }
 
@@ -105,7 +131,7 @@ onMounted(async () => {
       console.error('Failed to perform initial PTY resize after multiple attempts')
   }
 
-  const resizeObserver = new ResizeObserver(() => {
+  resizeObserver = new ResizeObserver(() => {
     fitAndResize().catch(e => {
         // Ignore 'Session not found' errors which happen if resize triggers before connection is ready
         if (typeof e === 'string' && e.includes('Session not found')) return
@@ -129,9 +155,139 @@ onBeforeUnmount(() => {
   unlistenError?.()
   unlistenExit?.()
   term?.dispose()
+  resizeObserver?.disconnect()
 })
+
+const activatePane = () => {
+    tabsStore.setActivePane(props.sessionId)
+}
+
+const onRightClick = (e: MouseEvent) => {
+    e.preventDefault()
+    showContextMenu.value = true
+    contextMenuX.value = e.clientX
+    contextMenuY.value = e.clientY
+    activatePane()
+}
+
+const closeContextMenu = () => {
+    showContextMenu.value = false
+}
+
+const handleCopy = async () => {
+    closeContextMenu()
+    const selection = term?.getSelection()
+    if (selection) {
+        await navigator.clipboard.writeText(selection)
+    }
+}
+
+const handlePaste = async () => {
+    closeContextMenu()
+    try {
+        const text = await navigator.clipboard.readText()
+        if (text) {
+             invoke('send_ssh_input', { id: props.sessionId, data: text })
+                .catch(err => console.error('Failed to paste input', err))
+        }
+    } catch (err) {
+        console.error('Failed to read clipboard', err)
+    }
+}
+
+
+const split = async (direction: 'horizontal' | 'vertical') => {
+    closeContextMenu()
+    // 1. Get current session info to replicate credentials (ideal) or just split with new empty/prompt?
+    // For now, let's assume we want to "duplicate" the session or start a fresh one?
+    // Logic: Create new session -> Add to sessionsStore -> Split in tabsStore
+    const currentSession = sessionsStore.sessions.find(s => s.id === props.sessionId)
+    if (!currentSession) return
+
+    // Note: We don't have the password anymore (security). 
+    // We can either:
+    // a) Prompt user again (safest)
+    // b) Store password in memory (risky, but convenient for extensive splitting)
+    // c) Just open a new session that will prompt (if we had an interactive prompt logic).
+    //
+    // Since our backend `connect_ssh` takes password, and we don't store it, we might fail to auto-connect.
+    // However, the `HostSidebar` logic passes data from the connect form.
+    // 
+    // CHANGE: For this MVP, let's just create a placeholder session or attempt to reconnect if possible?
+    // Realistically, to split *connected* session, we need credentials.
+    // Let's assume for now we just split and user has to "connect" again? 
+    // Or better: The user initiates split, but we need to know *what* to connect to.
+    
+    // Simplification: Reuse the same host details but we might lack password.
+    // If key-based, it works fine.
+    
+    // Let's try to find if we can re-trigger connection flow?
+    // Maybe we just open the split and show "Disconnected"?
+    
+    // Let's create a new Session ID first.
+    const newSessionId = `session-${Date.now()}`
+    
+    // We need to add it to sessionsStore
+    sessionsStore.addSession({
+        id: newSessionId,
+        hostLabel: currentSession.hostLabel,
+        status: 'disconnected' // Start disconnected?
+    })
+    
+    // Split the pane
+    tabsStore.splitPane(props.sessionId, direction, newSessionId)
+    
+    // Note: It will show empty terminal.
+    // TODO: Improve this flow to perhaps prompt for password if needed, or re-use credentials if cached.
+}
 </script>
 
 <template>
-  <div ref="terminalContainer" class="h-full w-full bg-[#282a36] overflow-hidden" />
+  <div 
+    class="h-full w-full relative group" 
+    @click="activatePane" 
+    @contextmenu="onRightClick"
+  >
+      <!-- Terminal Container -->
+      <div ref="terminalContainer" class="h-full w-full bg-[#282a36] overflow-hidden" />
+      
+      <!-- Disconnected Overlay -->
+      <div 
+        v-if="tabsStore.activePaneId === sessionId && sessionsStore.sessions.find(s => s.id === sessionId)?.status === 'disconnected'"
+        class="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-10"
+      >
+          <div class="text-center p-4 bg-popover/80 border border-border rounded-lg shadow-lg">
+               <p class="text-foreground font-medium mb-2">Disconnected</p>
+               <p class="text-sm text-muted-foreground">Select a host from the sidebar to connect</p>
+          </div>
+      </div>
+      
+      <!-- Context Menu -->
+      <div 
+        v-if="showContextMenu"
+        ref="contextMenuRef"
+        class="fixed z-50 bg-popover text-popover-foreground border border-border shadow-md rounded-md p-1 min-w-[150px] flex flex-col gap-0.5"
+        :style="{ top: `${contextMenuY}px`, left: `${contextMenuX}px` }"
+      >
+          <button @click="handleCopy" :disabled="!hasSelection" class="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded-sm text-sm text-left disabled:opacity-50 disabled:cursor-not-allowed">
+              <Copy class="w-4 h-4" /> Copy
+          </button>
+          <button @click="handlePaste" class="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded-sm text-sm text-left">
+              <Clipboard class="w-4 h-4" /> Paste
+          </button>
+          <div class="h-px bg-border my-0.5"></div>
+
+          <button @click="split('horizontal')" class="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded-sm text-sm text-left">
+              <SplitSquareVertical class="w-4 h-4" /> Split Horizontal
+          </button>
+          <button @click="split('vertical')" class="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded-sm text-sm text-left">
+               <SplitSquareHorizontal class="w-4 h-4" /> Split Vertical
+          </button>
+           <button @click="sessionsStore.removeSession(sessionId); tabsStore.removePane(sessionId)" class="flex items-center gap-2 px-2 py-1.5 hover:bg-destructive/10 hover:text-destructive rounded-sm text-sm text-left">
+               <X class="w-4 h-4" /> Close Pane
+          </button>
+      </div>
+  </div>
 </template>
+
+
